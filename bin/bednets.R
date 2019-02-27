@@ -15,38 +15,30 @@ pacman::p_load(mosaic)
 # requires internet connection
 df <- read.csv("https://raw.githubusercontent.com/sahirbhatnagar/cleandata/master/data/bednets.csv",
                stringsAsFactors = FALSE)
-head(df)
-str(df)
-
-ggformula::gf
 
 
-ds <- read.csv("https://raw.githubusercontent.com/sahirbhatnagar/cleandata/master/data/hiv_transmission.csv",
-            header=TRUE)
-ds$n.hivneg= ds$n.pairs - ds$n.hivpos
-str(ds)
 
-ds %>% gather(key = "type",value="count",-caesarian,-m.advancedHIV, -n.periods.ART) %>% 
-  spread(caesarian, count)
+# Tidy data ---------------------------------------------------------------
 
-# ds$ART1or2 <- ifelse(ds$m.trimesters.tx==1.5, 1, 0)
-# ds$ART3 <- ifelse(ds$m.trimesters.tx==3, 1, 0)
-# ds$m.trimesters.tx <- NULL
-# head(ds)
-# write.table(ds, file = "hiv_Transmission.csv", quote = FALSE, row.names = FALSE, 
-#             sep = ",")
 
-ds$propn = round(ds$n.hivpos/ds$n.pairs,3)
+df_t <- df %>% 
+  tidyr::gather(key = "key", value = "value", -month) %>% 
+  tidyr::separate(key, into = c("type","exposure"), sep = "_") %>% 
+  tidyr::spread(key = "type", value = "value") %>% 
+  dplyr::mutate(exposure = factor(exposure, levels = c("standard","ppftreated")))
 
-#overall proportion hiv positive
 
-round(sum(ds$n.hivpos)/sum(ds$n.pairs),3)
+df_t <- df_t[-which(df_t$pt==0),]
 
-# intercept-only logit model
 
-# devtools::install_github('droglenc/NCStats')
-library(NCStats)
 
-fit0=glm(cbind(n.hivpos,ds$n.hivneg) ~ 1,
-         family=binomial, data=ds)
-summary(fit0)
+# Run poisson regression --------------------------------------------------
+
+fit <- glm(cases ~ exposure + offset(log(pt)), 
+           data = df_t, family = poisson(link = log))
+summary(fit)
+exp(confint(fit))
+exp(coef(fit))
+
+ggformula::df_stats(cases ~ exposure, data = df_t, sum)
+ggformula::df_stats(pt ~ exposure, data = df_t, sum)
